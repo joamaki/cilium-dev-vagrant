@@ -15,6 +15,12 @@ def hostname(i)
   "cilium#{i}"
 end
 
+public_key_path = File.join(Dir.home, ".ssh", "id_rsa.pub")
+if File.exist?(public_key_path)
+  public_key = IO.read(public_key_path)
+end
+
+# Test machines
 Vagrant.configure(2) do |config|
     (1..N_MACHINES).each do |i|
         hostname = hostname(i)
@@ -32,8 +38,16 @@ Vagrant.configure(2) do |config|
             host.vm.network "private_network", ip: ip_addr(i)
             host.vm.network "private_network", ip: ip_addr_sec(i)
             host.vm.synced_folder ".", "/vagrant", disabled: true
-            host.vm.synced_folder "/home/brb/sandbox/gopath/src/github.com/cilium/cilium", "/cilium", type: "nfs", nfs_udp: false
+            host.vm.synced_folder "/Users/jussi/work/github.com/cilium/cilium", "/cilium", type: "nfs", nfs_udp: false
         end
     end
-    config.vm.provision "shell", path: "install-k8s.sh"
+    config.ssh.forward_agent = true
+    config.ssh.keys_only = false
+    config.vm.provision "shell", path: "provision.sh"
+    config.vm.provision "shell", path: "dotfiles.sh", privileged: false
+    config.vm.provision :shell, privileged: false, :inline => <<-SCRIPT
+      set -e
+      echo '#{public_key}' >> /home/vagrant/.ssh/authorized_keys
+      chmod 600 /home/vagrant/.ssh/authorized_keys
+    SCRIPT
 end
